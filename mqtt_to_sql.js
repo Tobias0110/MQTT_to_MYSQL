@@ -27,7 +27,6 @@ con.connect(function(err) {
 const mqtt_con = mqtt.connect("mqtt://" + config.mqtt_ip, {clientId:"MQTT_to_SQL", username: config.mqtt_user, password: config.mqtt_passwd});
 
 mqtt_con.on("connect", () =>{
-    console.log("[MQTT] Connected!");
     for (const x in config.bridges){
         mqtt_con.subscribe(x, (err) => {
             if (err) throw err;
@@ -43,7 +42,6 @@ mqtt_con.on("message", (topic, message) => {
 
     let mess = JSON.parse(message.toString());
 
-    //sql = "INSERT INTO " + config.bridges[topic].table + " (";
     let sql_columns = "INSERT INTO ?? ("
     let sql_values = ") VALUES (";
 
@@ -54,18 +52,22 @@ mqtt_con.on("message", (topic, message) => {
         columns.push(config.bridges[topic].links[x].column);
         if(deb == true) console.log(config.bridges[topic].links[x].type);
 
+        // for the following cases the JSON object name is ignored
+        // save the full mqtt message to DB
         if(config.bridges[topic].links[x].type == "message") {
             if(deb == true) console.log(message.toString());
             values.push(message.toString());
         }
+        // add the current time to DB
         else if(config.bridges[topic].links[x].type == "current_time") {
             if(deb == true) console.log(current_time());
             values.push(current_time());
         }
+        // for the following cases the JSON object name must be equal to the objects in the mqtt message
         else {
             
             if(deb == true) console.log(mess[x]);
-            // integer found_int != null
+            // integer
             if((config.bridges[topic].links[x].type == "int") && (!Number.isNaN(parseInt(mess[x])))) {
             values.push(parseInt(mess[x]));
             }
@@ -77,6 +79,12 @@ mqtt_con.on("message", (topic, message) => {
             else if(config.bridges[topic].links[x].type == "str") {
                 values.push(mess[x].toString());
                 }
+            // iso timestamp with timezone
+            else if(config.bridges[topic].links[x].type == "iso_time") {
+                let date = new Date(mess[x]);
+                if(deb == true) console.log(date.toISOString().slice(0, 19).replace('T', ' '));
+                values.push(date.toISOString().slice(0, 19).replace('T', ' '));
+            }
             else {
                 values.push(null);
             }
@@ -96,14 +104,4 @@ mqtt_con.on("message", (topic, message) => {
         if (err) throw err;
         if(deb == true)console.log(result);
       });
-
-    /*con.query(sql_command, function (err, result, fields) {
-        if (err) throw err;
-        console.log(result);
-      });*/
-
-    /*con.query("SELECT * FROM stromzaehler.stromzaehler_nebi", function (err, result, fields) {
-        if (err) throw err;
-        console.log(result);
-      });*/
   });
