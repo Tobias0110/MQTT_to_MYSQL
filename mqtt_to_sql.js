@@ -8,6 +8,11 @@ const config = JSON.parse( readFileSync('./config.json', 'utf-8' ));
 let deb = false;
 if(argv[2] == "-d") deb = true;
 
+function current_time() {
+    let date = new Date();
+    return date.toISOString().slice(0, 19).replace('T', ' ');
+}
+
 let con = mysql.createConnection({
     host: config.sql_ip,
     user: config.sql_user,
@@ -16,12 +21,13 @@ let con = mysql.createConnection({
 
 con.connect(function(err) {
     if (err) throw err;
-    console.log("Connected!");
+    console.log("[MYSQL] Connected!");
   });
 
 const mqtt_con = mqtt.connect("mqtt://" + config.mqtt_ip, {clientId:"MQTT_to_SQL", username: config.mqtt_user, password: config.mqtt_passwd});
 
 mqtt_con.on("connect", () =>{
+    console.log("[MQTT] Connected!");
     for (const x in config.bridges){
         mqtt_con.subscribe(x, (err) => {
             if (err) throw err;
@@ -44,6 +50,7 @@ mqtt_con.on("message", (topic, message) => {
     for (const x in config.bridges[topic].links){
         if(deb == true) console.log(config.bridges[topic].links[x].column);
         sql_columns = sql_columns + "??, ";
+        sql_values = sql_values + "?, ";
         columns.push(config.bridges[topic].links[x].column);
         if(deb == true) console.log(config.bridges[topic].links[x].type);
 
@@ -51,8 +58,12 @@ mqtt_con.on("message", (topic, message) => {
             if(deb == true) console.log(message.toString());
             values.push(message.toString());
         }
+        else if(config.bridges[topic].links[x].type == "current_time") {
+            if(deb == true) console.log(current_time());
+            values.push(current_time());
+        }
         else {
-            sql_values = sql_values + "?, ";
+            
             if(deb == true) console.log(mess[x]);
             // integer found_int != null
             if((config.bridges[topic].links[x].type == "int") && (!Number.isNaN(parseInt(mess[x])))) {
